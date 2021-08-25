@@ -126,6 +126,12 @@ def display_image_planogramme(image,idUser):
     plt.imshow(image)
     plt.savefig('image_product_detection_planogramme'+str(idUser)+'.jpg')
 
+def display_image_models(image,idUser):
+    fig = plt.figure(figsize=(20, 20))
+    plt.grid(False)
+    plt.imshow(image)
+    plt.savefig('image_product_detection_models'+str(idUser)+'.jpg')
+
 def download_and_resize_image(url, new_width=256, new_height=256,
                               display=False):
     _, filename = tempfile.mkstemp(suffix=".jpg")
@@ -148,7 +154,7 @@ def draw_bounding_box_on_image(image,
                                    xmax,
                                    color,
                                    font,
-                                   thickness=4,
+                                   thickness=8,
                                    display_str_list=()):
 
         draw = ImageDraw.Draw(image)
@@ -273,27 +279,26 @@ def remove_classes(classes, a, result_boxes, result_scores, result_taille, heigh
     l = 0
     while (l < len(classes)):
         if (abs(result_boxes[l][2] - heights[nb_shelf - 1]) < 0.1):
-            print(classes[l].decode(), result_scores[l], result_boxes[l])
             l = l + 1
         else:
             a[classes[l].decode()] -= 1
             del classes[l]
             del result_boxes[l]
             del result_scores[l]
-            del result_taille[l]
+
 
 
 def remove_classes_filter(a, classe_name, classes, result_boxes, result_scores, result_taille):
     l = 0
     while (l < len(classes)):
-        if (classe_name == classes[l].decode()):
+        if (classe_name == classes[l].decode() or 'Etagere' in classes[l].decode()):
             l = l + 1
         else:
             a[classes[l].decode()] -= 1
             del classes[l]
             del result_boxes[l]
             del result_scores[l]
-            del result_taille[l]
+
 
 
 def add_shelf_col(heights, classes, result_boxes, result_taille):
@@ -307,18 +312,25 @@ def add_shelf_col(heights, classes, result_boxes, result_taille):
         while (m <= (len(classes) - 1)):
             if (abs(result_boxes[m][2] - heights[h]) < 0.1):
                 col += 1
-                etagers["Etagere " + str(h + 1)]["Colonne" + str(col)] = [classes[m].decode()]
+                boxe=[str(result_boxes[m][0]),str(result_boxes[m][1]),str(result_boxes[m][2]),str(result_boxes[m][3])]
+                etagers["Etagere "+ str(h+1)]["Colonne "+str(col)]=[classes[m].decode(),boxe]
             m += 1
         h += 1
         m = 0
         col = 0
     return etagers
 
+def copy_directory(src,dest):
+    for f in listdir(src):
+        os.path.isdir(f)
+        if not os.path.exists(dest+"/"+f):
+            copy_tree(src+"/"+f,dest+"/"+f)
+            
 
 def add_column(etagers):
     shelfs = {}
     for key, value in etagers.items():
-        sorted_value = sorted(value.items(), key=lambda tup: tup[1][2])
+        sorted_value = sorted(value.items(), key=lambda tup: float(tup[1][1][3]))
         etagers[key] = dict(sorted_value)
     for key, value in etagers.items():
         col = 1
@@ -602,11 +614,191 @@ def remove_classes_zone(classes,a,result_boxes,result_scores,result_taille,zones
                 else:
                     x=result_boxes[l][3]-result_boxes[l][1]
             
-            if(x>0.5*(result_boxes[l][3]-result_boxes[l][1]) and y>0.5*(result_boxes[l][2]-result_boxes[l][0])):
+            if(x>0.5*(result_boxes[l][3]-result_boxes[l][1]) and y>0.5*(result_boxes[l][2]-result_boxes[l][0]) or 'Etagere' in classes[l].decode()):
                 l+=1 
             else:
                 a[classes[l].decode()]-=1
                 del classes[l]
                 del result_boxes[l]
                 del result_scores[l]
-                del result_taille[l]
+
+
+def add_zone_empty_comp(zone,zones,classe,result_boxe,nb_zone):
+       
+        if("Zone " +str(nb_zone) not in zone):
+            zone["Zone " +str(nb_zone)]={}
+            
+        if(result_boxe[2]>zones[2] ):
+                y=zones[2]-result_boxe[0] 
+        else:
+            if(result_boxe[0]<zones[0]):
+                y=result_boxe[2]-zones[0]
+            else:
+                y=result_boxe[2]-result_boxe[0]
+                
+        if(result_boxe[3]>zones[3]):
+                x=zones[3]-result_boxe[1]
+        else:
+            if(result_boxe[1]<zones[1]):
+                    x=result_boxe[3]-zones[1]
+            else:
+                    x=result_boxe[3]-result_boxe[1]
+                
+        if(x>0.5*(result_boxe[3]-result_boxe[1]) and y>0.5*(result_boxe[2]-result_boxe[0])):
+            if(classe not in zone["Zone " +str(nb_zone)]):
+                    zone["Zone " +str(nb_zone)][classe]=1
+            else:
+                    zone["Zone " +str(nb_zone)][classe]+=1
+
+
+def add_shelf_comp(heights,classes,result_scores,result_boxes,max_height,scores_shelf):
+    k=0 
+    if (max_height not in heights):
+        heights=sorted(heights)
+    while(k<=(len(heights)-2)):
+        classes.append(("Etagere "+str(k+1)).encode())
+        result_scores.append(scores_shelf[k])
+        boxe=[heights[k],0.01,heights[k]+(heights[k+1]-heights[k])*0.2,0.99]
+        result_boxes.append(boxe)
+        k=k+1
+
+def return_shelf_min(heights,classes,result_boxes,result_taille):
+    col=0
+    h=0
+    m=0
+    etagers={}
+    sizes=[]
+    while(h<=(len(heights)-1)):
+        if("Etagere "+str(h+1) not in etagers):
+            etagers["Etagere "+str(h+1)]={}
+        while(m<= (len(classes)-1)):
+            if(abs(result_boxes[m][2]-heights[h])<0.1):
+                sizes.append(result_taille[m])
+            m+=1
+        etagers["Etagere "+str(h+1)]=min(sizes)
+        h+=1
+        sizes=[]
+        m=0
+    return  etagers
+
+
+def run_detector_retinaNet(path,inference_model,classes_second,scores_second,boxes_second,product_dict):
+    list_result = {}
+
+    a = {}
+    boxes = []
+    classes = []
+    scores = []
+    img = load_img(path)
+    image_pil = Image.open(path)
+    size = image_pil.size
+    image = tf.cast(img, dtype=tf.float32)
+    input_image, ratio = prepare_image(image)
+    detections = inference_model.predict(input_image)
+    num_detections = detections.valid_detections[0]
+    i = 0
+    model_classification = get_model_classification()
+    class_names = get_class_names_products()
+    while (i <= len(detections.nmsed_classes[0][:num_detections]) - 1):
+        predicted_class = int(detections.nmsed_classes[0][:num_detections][i])
+
+        if ((predicted_class in accepted_classes_retinaNet_int)):
+            result_boxe = (detections.nmsed_boxes[0][:num_detections] / ratio)[i]
+            boxe = result_boxe.numpy()
+            boxe = swapPositions(boxe, 0, 1)
+            boxe = swapPositions(boxe, 2, 3)
+            boxe = [boxe[0] / size[1], boxe[1] / size[0], boxe[2] / size[1], boxe[3] / size[0]]
+            border = (boxe[1] * size[0], boxe[0] * size[1], size[0] - (boxe[3] * size[0]),
+                      size[1] - (boxe[2] * size[1]))  # ,0, left, up, right, bottom
+            shape = [(boxe[1] * size[0], boxe[0] * size[1]), (boxe[3] * size[0], boxe[2] * size[1])]
+            im = ImageOps.crop(image_pil, border)
+            path_im = 'image.jpg'
+            im.save(path_im)
+            size_im = im.size
+            classe, score = predict_img(path_im, model_classification, class_names)
+            if (score > 0.995 and size_im[0] <0.19 * size[0] and size_im[1] <0.19 * size[1]):
+                print(classe,boxe)
+                draw = ImageDraw.Draw(image_pil)
+                draw.rectangle((shape), fill="#948889")
+                image_pil.save('new_image_second.jpg', "JPEG")
+                image_pil = Image.open('new_image_second.jpg')
+                classes.append(classe.encode())
+                boxes.append(boxe)
+                scores.append(score)
+                if (classe in product_dict):
+                    product_dict[classe] += 1
+                else:
+                    product_dict[classe] = 1
+        i = i + 1
+
+
+    classes_result= classes+classes_second
+    scores_result = scores+scores_second
+    boxes_result = boxes+boxes_second
+    print("le nombre de produits : ", len(classes))
+    print(product_dict)
+
+    return classes_result, scores_result,boxes_result,product_dict
+
+
+def run_detector_fasterRCNN(detector, path):
+    a = {}
+    tailles = {}
+    i = 0
+    img = load_img(path)
+    img_detector = load_img(path)
+    image = Image.open(path)
+    size = image.size
+    converted_img = tf.image.convert_image_dtype(img_detector, tf.float32)[tf.newaxis, ...]
+    result = detector(converted_img)
+    result = {key: value.numpy() for key, value in result.items()}
+    list_result = dict()
+    classes = []
+    font = ImageFont.load_default()
+    result_boxes = []
+    result_scores = []
+    result_taille = []
+    longeurs = []
+    heights = []
+    model_classification = get_model_classification()
+    class_names = get_class_names_products()
+    while (i <= (len(result["detection_scores"]) - 1)):
+        if ((result["detection_class_entities"][i].decode() in accepted_classes_facter_RCNN)):
+            border = (result["detection_boxes"][i][1] * size[0], result["detection_boxes"][i][0] * size[1],
+                      size[0] - (result["detection_boxes"][i][3] * size[0]),
+                      size[1] - (result["detection_boxes"][i][2] * size[1]))  # ,0, left, up, right, bottom
+            shape = [(result["detection_boxes"][i][1] * size[0], result["detection_boxes"][i][0] * size[1]),
+                     (result["detection_boxes"][i][3] * size[0], result["detection_boxes"][i][2] * size[1])]
+            im = ImageOps.crop(image, border)
+            path_im = 'image.jpg'
+            im.save(path_im)
+            size_im=im.size
+            classe, score = predict_img(path_im, model_classification, class_names)
+            size = image.size
+            if (score > 0.99 and size_im[0] < 0.2 * size[0] and size_im[1] < 0.2 * size[1]):
+                print(classe, result["detection_boxes"][i])
+                heights = return_shelfs(heights, result["detection_boxes"][i][2])
+                draw = ImageDraw.Draw(image)
+                draw.rectangle((shape), fill="#948889")
+                image.save('image_facterRCNN.jpg', "JPEG")
+                image = Image.open('image_facterRCNN.jpg')
+                taille = result["detection_boxes"][i][3] - result["detection_boxes"][i][1]
+                classes.append(classe.encode())
+                result_boxes.append(result["detection_boxes"][i])
+                result_scores.append(score)
+                result_taille.append(taille)
+                if (classe in a):
+                    a[classe] += 1
+                    if (taille > tailles[classe]):
+                        tailles[classe] = taille
+                else:
+                    a[classe] = 1
+                    tailles[classe] = taille
+
+        i = i + 1
+    X = np.array(result_boxes)
+    list_result["detection_class_entities"] = classes
+    list_result["detection_scores"] = result_scores
+    list_result["detection_boxes"] = X
+    return classes, result_scores, result_boxes, heights, a, tailles, result_taille
+

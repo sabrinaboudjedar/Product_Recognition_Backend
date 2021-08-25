@@ -1,7 +1,7 @@
 from .functions import *
 from .shared import *
 import base64
-from base64 import decodestring
+import json
 
 def run_detector_fasterRCNN_first(detector, path):
     a = {}
@@ -23,7 +23,9 @@ def run_detector_fasterRCNN_first(detector, path):
     result_scores=[]
     result_taille=[]
     longeurs=[]
-    heights=[] 
+    heights=[]
+    model_classification = get_model_classification()
+    class_names = get_class_names_products()
     while(i<= (len(result["detection_scores"])-1)):
         if((result["detection_class_entities"][i].decode() in accepted_classes_facter_RCNN )):
             border =(result["detection_boxes"][i][1]*size[0],result["detection_boxes"][i][0]*size[1],size[0]-(result["detection_boxes"][i][3]*size[0]),size[1]-(result["detection_boxes"][i][2]*size[1]))#,0, left, up, right, bottom
@@ -33,13 +35,14 @@ def run_detector_fasterRCNN_first(detector, path):
             im.save(path_im)
             classe,score=predict_img(path_im,model_classification,class_names)
             size= image.size
-            if(score>0.996):
+            if(score>0.993):
+                print(classe,result["detection_boxes"][i])
                 heights=return_shelfs(heights,result["detection_boxes"][i][2])
                 draw = ImageDraw.Draw(image)
                 draw.rectangle((shape), fill="#948889")
                 image.save('image_facterRCNN.jpg', "JPEG")
                 image=Image.open('image_facterRCNN.jpg')
-                taille=im.size[1]*im.size[0]
+                taille=result["detection_boxes"][i][3]-result["detection_boxes"][i][1]
                 classes.append(classe.encode())
                 result_boxes.append(result["detection_boxes"][i])
                 result_scores.append(score)
@@ -59,7 +62,7 @@ def run_detector_fasterRCNN_first(detector, path):
     list_result["detection_boxes"]= X
     return classes,result_scores,result_boxes,heights,a,tailles,result_taille
 
-def run_detector_retinaNet_second(model,idUser,path,classes_Faster,scores_Faster,boxes_Faster,heights,product_dict,tailles,result_taille):
+def run_detector_retinaNet_second(model,idUser,detector,path,classes_Faster,scores_Faster,boxes_Faster,heights,product_dict,tailles,result_taille):
    
         list_result={}
         a = {}
@@ -68,14 +71,20 @@ def run_detector_retinaNet_second(model,idUser,path,classes_Faster,scores_Faster
         products=[]
         scores=[]
         img = load_img(path)
-        image_detector=load_img('image_facterRCNN.jpg')
-        image_pil=Image.open('image_facterRCNN.jpg')
+        if(classes_Faster!=[]):
+            image_detector=load_img('image_facterRCNN.jpg')
+            image_pil=Image.open('image_facterRCNN.jpg')
+        else:
+            image_detector = load_img(path)
+            image_pil = Image.open(path)
         size=image_pil.size
         image = tf.cast(image_detector, dtype=tf.float32)
         input_image, ratio = prepare_image(image)
         detections = model.predict(input_image)
         num_detections = detections.valid_detections[0]
         i=0
+        model_classification = get_model_classification()
+        class_names = get_class_names_products()
         while(i<= len(detections.nmsed_classes[0][:num_detections])-1):
                 predicted_class=int(detections.nmsed_classes[0][:num_detections][i])
                 if((predicted_class in accepted_classes_retinaNet_int )):
@@ -88,11 +97,11 @@ def run_detector_retinaNet_second(model,idUser,path,classes_Faster,scores_Faster
                     shape = [(boxe[1]*size[0], boxe[0]*size[1]), (boxe[3]*size[0],boxe[2]*size[1])]
                     im=ImageOps.crop(image_pil, border)
                     path_im='image.jpg'
-                    im.save(path_im)
+                    im.save('image.jpg', "JPEG")
                     size_im=im.size
-                    taille=size_im[1]*size_im[0]
+                    taille=boxe[3]-boxe[1]
                     classe,score=predict_img(path_im,model_classification,class_names)
-                    if(score>0.999 and size_im[0]< 0.4*size[0] and size_im[1]< 0.4*size[1] ):
+                    if(score>0.997 and size_im[0]< 0.25*size[0] and size_im[1]< 0.25*size[1] ):
                         print(classe,score)
                         heights=return_shelfs(heights,boxe[2])
                         draw = ImageDraw.Draw(image_pil)
@@ -113,23 +122,83 @@ def run_detector_retinaNet_second(model,idUser,path,classes_Faster,scores_Faster
                 i=i+1
         heights=sorted(heights)
         products=classes_Faster+classes
-        #dd_size(result_taille,tailles,products)
-        add_shelf(heights,products,scores,boxes,1.0)
-        a["Etagere"]=len(heights)-1   
-        X = np.array(boxes_Faster+boxes)
-        list_result["detection_class_entities"]=products
-        list_result["detection_scores"]=scores_Faster+scores
+        new_boxes=boxes_Faster+boxes
+        shelfs_size = return_shelf_min(heights, products, boxes_Faster+boxes, result_taille)
+        print(shelfs_size)
+        add_shelf(heights,products,scores,new_boxes,1.0)
+        a["Etagere"]=len(heights)-1
+        etagers = add_shelf_col(heights, classes_Faster+classes, boxes_Faster+boxes, result_taille)
+        shelfs = add_column(etagers)
+        nb_empty = 0
+        cpt=1
+        for key, value in shelfs.items():
+            for key_, value_ in value.items():
+                if (cpt < len(value.items())):
+                    colonne_n = value["Colonne " + str(cpt)]
+                    colonne_m = value["Colonne " + str(cpt + 1)]
+                    boxe_n = float(colonne_n[1][3])
+                    boxe_m = float(colonne_m[1][1])
+
+                else:
+                    colonne_n = value["Colonne " + str(cpt)]
+                    boxe_n = float(colonne_n[1][3])
+                    boxe_m = 1.0
+                if (boxe_m - boxe_n > shelfs_size[key]):
+                    nb_empty += 1
+
+                cpt += 1
+            cpt = 1
+        print(nb_empty)
+        if (nb_empty > 0):
+            if(classes==[]):
+                classes_second, scores_second, boxes_second, heights_second, data_dict, tailles_second, result_taille_second = run_detector_fasterRCNN(detector, 'image_facterRCNN.jpg')
+            else:
+                classes_second,scores_second,boxes_second,heights_second,data_dict,tailles_second,result_taille_second = run_detector_fasterRCNN(detector, 'new_image.jpg')
+            print(data_dict)
+            for key_data, value_data in data_dict.items():
+                print(key_data)
+                if(key_data in product_dict.keys()):
+                    product_dict[key_data]+=value_data
+                else:
+                    product_dict[key_data]=value_data
+            if(classes_second!=[] ):
+                classes_third,scores_third,boxes_third,product_dict= run_detector_retinaNet('image_facterRCNN.jpg',model,classes_second,scores_second,boxes_second,product_dict)
+            else:
+                classes_third, scores_third, boxes_third,product_dict = run_detector_retinaNet('new_image.jpg', model,classes_second, scores_second,boxes_second,product_dict)
+
+            etagers = add_shelf_col(heights, classes_Faster+classes+classes_third,boxes_Faster+boxes+boxes_third, result_taille)
+            shelfs = add_column(etagers)
+        else:
+            classes_third=[]
+            scores_third=[]
+            boxes_third=[]
+
+
+        print(shelfs )
+        X = np.array(new_boxes+boxes_third)
+        list_result["detection_class_entities"]=products+classes_third
+        list_result["detection_scores"]=scores_Faster+scores+scores_third
         list_result["detection_boxes"]= X
-        nb_produits=len(classes+classes_Faster)
-        print("le nombre total des produits est : " ,len(classes+classes_Faster))
+        nb_produits=len(classes+classes_Faster+classes_third)
+        print("le nombre total des produits est : " ,len(classes+classes_Faster+classes_third)-1)
         print(product_dict)
         print("Le nombre d'étagères est : ",len(heights)-1)
         image_with_boxes = draw_boxes(
             img.numpy(), list_result["detection_boxes"],
             list_result["detection_class_entities"], list_result["detection_scores"])
         display_image(image_with_boxes,idUser)
-        #etagers=add_shelf_col(heights,classes_Faster+classes,boxes_Faster+boxes,result_taille)
+        list_result["detection_boxes"]=boxes_Faster+boxes+boxes_third
+        classes_encoded=products+classes_third
+        new_classes=[c.decode() for c in classes_encoded]
+        new_scores=repr(scores_Faster+scores+scores_third)
+        new_boxes=repr(X.tolist())
+        print(new_boxes)
+        heights_str=heights
+        heights_str=repr(heights_str)
+        new_classes=repr(new_classes)
+        result_taille=repr(result_taille)
         with open("image_product_detection"+str(idUser)+".jpg", "rb") as image_file:
             image_data = base64.b64encode(image_file.read()).decode('utf-8')
-        reponse = {"nb_produits": nb_produits, "produits": product_dict, "etagers": len(heights) - 1,"image":image_data}
+        reponse = {"nb_produits": nb_produits, "produits": product_dict, "etagers": len(heights) - 1,"image":image_data,"data":shelfs , "classes":new_classes,
+                   "scores":new_scores,"boxes":new_boxes,"taille":result_taille,"height":heights_str}
         return reponse

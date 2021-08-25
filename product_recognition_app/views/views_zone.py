@@ -5,11 +5,15 @@ from django.http import JsonResponse
 # Create your views here.
 
 def run_detector_zone(request):
-    idUser=request.GET.get('idUser', '')
-    path ="imagePro_User"+str(idUser)+".jpg"
-    zone=int(request.GET.get('zone', 0))
-    detector= ProductRecognitionAppConfig.detector
-    model= ProductRecognitionAppConfig.model_retinaNet
-    classes_Faster,scores_Faster,boxes_Faster,heights,product_dict,tailles,result_taille=run_detector_fasterRCNN_first_zone(detector,path)
-    reponse=run_detector_retinaNet_second_zone(path,model,idUser,zone,classes_Faster,scores_Faster,boxes_Faster,heights,product_dict,tailles,result_taille)
+
+    nb_zone=int(request.GET.get('zone', 0))
+    idUser = request.GET.get('idUser', '')
+    path = "imagePro_User" + str(idUser) + ".jpg"
+    classes = request.GET.get('classes')
+    scores = request.GET.get('scores')
+    boxes = request.GET.get('boxes')
+    result_taille = request.GET.get('taille')
+    product_dict = request.GET.get('products')
+    heights = request.GET.get('height')
+    reponse=run_detector_zone_models(path,idUser,nb_zone,classes,scores,boxes,result_taille,product_dict,heights)
     return JsonResponse(reponse, safe=False)

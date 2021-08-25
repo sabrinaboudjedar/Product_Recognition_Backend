@@ -6,10 +6,13 @@ from django.http import JsonResponse
 
 def run_detector_classe(request):
     idUser=request.GET.get('idUser', '')
-    path ="imagePro_User"+str(idUser)+".jpg"
+    path = "imagePro_User" + str(idUser) + ".jpg"
     classe_name=request.GET.get('classe', '')
-    detector= ProductRecognitionAppConfig.detector
-    model= ProductRecognitionAppConfig.model_retinaNet
-    classes_Faster,scores_Faster,boxes_Faster,heights,product_dict,tailles,result_taille=run_detector_fasterRCNN_first_classe(detector,path,classe_name)
-    reponse=run_detector_retinaNet_second_classe(path,model,idUser,classe_name,classes_Faster,scores_Faster,boxes_Faster,heights,product_dict,tailles,result_taille)
+    classes=request.GET.get('classes')
+    scores = request.GET.get('scores')
+    boxes = request.GET.get('boxes')
+    result_taille=request.GET.get('taille')
+    product_dict=request.GET.get('products')
+    heights=request.GET.get('height')
+    reponse=run_detector_classe_models(path,idUser,classe_name,classes,scores,boxes,result_taille,product_dict,heights)
     return JsonResponse(reponse, safe=False)
