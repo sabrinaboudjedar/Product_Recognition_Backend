@@ -1,2 +1,0 @@
-global choice
-choice=False
