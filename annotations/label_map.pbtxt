@@ -1,0 +1,50 @@
+item
+{
+id :1
+name :'bref'
+}
+item
+{
+id :2
+name :'bref-3-en-1'
+}
+item
+{
+id :3
+name :'bref-linge'
+}
+item
+{
+id :4
+name :'pril-isis-5-en-1'
+}
+item
+{
+id :5
+name :'pril-isis-gold'
+}
+item
+{
+id :6
+name :'pril-isis-javel-power'
+}
+item
+{
+id :7
+name :'pril-isis-peaux-sensibles'
+}
+item
+{
+id :8
+name :'bref-nettoyant'
+}
+item
+{
+id :9
+name :'bref-linge-oxy'
+}
+item
+{
+id :10
+name :'bref-power-active'
+}
